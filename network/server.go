@@ -1,6 +1,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 )
@@ -19,6 +20,14 @@ func NewServer(name string, listenIP string, listenPort int) *Server {
 		ListenPort: listenPort,
 		IPVersion:  "tcp4",
 	}
+}
+
+func CallBackApi(conn *net.TCPConn, buf []byte, cnt int) error {
+	if _, err := conn.Write(buf[:cnt]); err != nil {
+		fmt.Println("消息回写发生错误！")
+		return errors.New("消息回写发生错误！")
+	}
+	return nil
 }
 
 func (s *Server) Start() {
@@ -42,16 +51,8 @@ func (s *Server) Start() {
 			if err != nil {
 				continue
 			}
-			buf := make([]byte, 1024)
-			n, err := conn.Read(buf)
-			if err != nil {
-				continue
-			}
-			fmt.Println(string(buf[:n]))
-
-			if _, err := conn.Write([]byte("hi!")); err != nil {
-				continue
-			}
+			c := NewConnection(conn, 1114, CallBackApi)
+			go c.Start()
 		}
 	}()
 }

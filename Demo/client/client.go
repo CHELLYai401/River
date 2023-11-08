@@ -19,11 +19,12 @@ func main() {
 
 	for {
 		buf := make([]byte, 1024)
-		if _, err := conn.Read(buf); err != nil {
+		n, err := conn.Read(buf)
+		if err != nil {
 			fmt.Println("消息接收失败！")
 			return
 		}
 
-		fmt.Println(string(buf))
+		fmt.Println(string(buf[:n]))
 	}
 }
