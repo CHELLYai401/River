@@ -1,10 +1,31 @@
 package main
 
 import (
+	"fmt"
 	"river/network"
 )
 
+type Hello struct {
+	network.BaseRouter
+}
+
+func (h *Hello) PreHandle(requset *network.Request) {
+	requset.Conn.SendMsg([]byte("处理业务之前"))
+	fmt.Println("处理业务之前")
+}
+
+func (h *Hello) Handle(requset *network.Request) {
+	requset.Conn.SendMsg([]byte("处理业务"))
+	fmt.Println("处理业务")
+}
+
+func (h *Hello) PostHandle(requset *network.Request) {
+	requset.Conn.SendMsg([]byte("处理业务之后"))
+	fmt.Println("处理业务之后")
+}
+
 func main() {
 	s := network.NewServer("tesst server", "127.0.0.1", 8888)
+	s.AddRouter(&Hello{})
 	s.Server()
 }

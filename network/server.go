@@ -11,6 +11,7 @@ type Server struct {
 	ListenIP   string
 	ListenPort int
 	IPVersion  string
+	Router     IRouter
 }
 
 func NewServer(name string, listenIP string, listenPort int) *Server {
@@ -19,6 +20,7 @@ func NewServer(name string, listenIP string, listenPort int) *Server {
 		ListenIP:   listenIP,
 		ListenPort: listenPort,
 		IPVersion:  "tcp4",
+		Router:     nil,
 	}
 }
 
@@ -51,7 +53,7 @@ func (s *Server) Start() {
 			if err != nil {
 				continue
 			}
-			c := NewConnection(conn, 1114, CallBackApi)
+			c := NewConnection(conn, 1114, s.Router)
 			go c.Start()
 		}
 	}()
@@ -64,4 +66,8 @@ func (s *Server) Stop() {
 func (s *Server) Server() {
 	s.Start()
 	select {}
+}
+
+func (s *Server) AddRouter(router IRouter) {
+	s.Router = router
 }

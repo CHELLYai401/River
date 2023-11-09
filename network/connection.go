@@ -13,16 +13,16 @@ type Connection struct {
 	ConnID      uint32
 	State       int
 	ExitChannel chan int
-	HandleAPI   HandleFunc
+	Router      IRouter
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, handleFunc HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, router IRouter) *Connection {
 	return &Connection{
 		Conn:        conn,
 		ConnID:      connID,
 		State:       0,
-		HandleAPI:   handleFunc,
 		ExitChannel: make(chan int, 1),
+		Router:      router,
 	}
 }
 
@@ -37,10 +37,13 @@ func (c *Connection) ReadMsg() {
 			break
 		}
 		fmt.Println(string(buf[:n]))
-		//调用当前链接所绑定的HandleAPI
-		if err := c.HandleAPI(c.Conn, buf, n); err != nil {
-			fmt.Println("ConnID", c.ConnID, "handle is error", err)
-			break
+
+		r := NewRequest(c, buf)
+
+		if c.Router != nil {
+			c.Router.PreHandle(r)
+			c.Router.Handle(r)
+			c.Router.PostHandle(r)
 		}
 	}
 }
