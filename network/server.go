@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"river/utils"
 )
 
 type Server struct {
@@ -16,10 +17,10 @@ type Server struct {
 
 func NewServer(name string, listenIP string, listenPort int) *Server {
 	return &Server{
-		Name:       name,
-		ListenIP:   listenIP,
-		ListenPort: listenPort,
-		IPVersion:  "tcp4",
+		Name:       utils.GlobalObject.Name,
+		ListenIP:   utils.GlobalObject.IP,
+		ListenPort: utils.GlobalObject.Port,
+		IPVersion:  utils.GlobalObject.IPVersion,
 		Router:     nil,
 	}
 }
@@ -46,6 +47,7 @@ func (s *Server) Start() {
 		return
 	}
 	fmt.Println("服务器启动成功…………")
+	fmt.Println("服务器名字：", s.Name, "服务器监听地址：", s.ListenIP, "服务器监听端口：", s.ListenPort, "服务器版本：", s.IPVersion)
 
 	go func() {
 		for {

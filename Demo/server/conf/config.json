@@ -1,0 +1,7 @@
+{
+    "Name":"cnet v0.5 demoServerApp",
+    "IP":"127.0.0.1",
+    "Port":8888,
+    "IPVersion":"tcp4",
+    "Version":"v0.05"
+}

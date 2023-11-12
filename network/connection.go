@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 )
 
@@ -31,20 +32,36 @@ func (c *Connection) ReadMsg() {
 	defer c.Stop()
 
 	for {
-		buf := make([]byte, 1024)
-		n, err := c.Conn.Read(buf)
+
+		GetHeadLen := make([]byte, GetHeadLen())
+		if _, err := io.ReadFull(c.Conn, GetHeadLen); err != nil {
+			return
+		}
+
+		msgHead, err := Unpack(GetHeadLen)
 		if err != nil {
-			break
+			return
 		}
-		fmt.Println(string(buf[:n]))
 
-		r := NewRequest(c, buf)
+		if msgHead.Len > 0 {
+			msg := msgHead
+			msg.Data = make([]byte, msg.GetMsgLen())
+			_, err := io.ReadFull(c.Conn, msg.Data)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println("客户端发的消息内容：", string(msg.Data), "客户端发的消息ID：", msg.Id, "客户端发的消息长度：", msg.Len)
 
-		if c.Router != nil {
-			c.Router.PreHandle(r)
-			c.Router.Handle(r)
-			c.Router.PostHandle(r)
+			r := NewRequest(c, 1, msg.Data)
+
+			if c.Router != nil {
+				c.Router.PreHandle(r)
+				c.Router.Handle(r)
+				c.Router.PostHandle(r)
+			}
 		}
+
 	}
 }
 
@@ -73,10 +90,15 @@ func (c *Connection) GetConnAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c *Connection) SendMsg(data []byte) error {
+func (c *Connection) SendMsg(msgid uint32, data []byte) error {
 	if c.State == 0 {
 		return errors.New("链接失效！")
 	}
+	data, err := Pack(NewMessage(msgid, data))
+	if err != nil {
+		return err
+	}
+
 	if _, err := c.Conn.Write(data); err != nil {
 		return errors.New("消息发送失败！")
 	}

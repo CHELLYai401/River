@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"river/network"
 )
 
 func main() {
@@ -12,19 +14,37 @@ func main() {
 		return
 	}
 	fmt.Println("服务器链接成功！")
-	if _, err := conn.Write([]byte("hello!")); err != nil {
+
+	data, err := network.Pack(network.NewMessage(1, []byte("hello!")))
+	if err != nil {
+		return
+	}
+
+	if _, err := conn.Write(data); err != nil {
 		fmt.Println("消息发送失败！")
 		return
 	}
 
 	for {
-		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println("消息接收失败！")
+		GetHeadLen := make([]byte, network.GetHeadLen())
+		if _, err := io.ReadFull(conn, GetHeadLen); err != nil {
 			return
 		}
 
-		fmt.Println(string(buf[:n]))
+		msgHead, err := network.Unpack(GetHeadLen)
+		if err != nil {
+			return
+		}
+
+		if msgHead.Len > 0 {
+			msg := msgHead
+			msg.Data = make([]byte, msg.GetMsgLen())
+			_, err := io.ReadFull(conn, msg.Data)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println("服务器发的消息内容：", string(msg.Data), "服务器发的消息ID：", msg.Id, "服务器发的消息长度：", msg.Len)
+		}
 	}
 }

@@ -3,12 +3,14 @@ package network
 type Request struct {
 	Conn *Connection
 	Data []byte
+	Msg  *Message
 }
 
-func NewRequest(conn *Connection, data []byte) *Request {
+func NewRequest(conn *Connection, msgId uint32, data []byte) *Request {
 	return &Request{
 		Conn: conn,
-		Data: make([]byte, 0),
+		Data: data,
+		Msg:  NewMessage(msgId, data),
 	}
 }
 
