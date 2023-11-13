@@ -6,8 +6,8 @@ type Request struct {
 	Msg  *Message
 }
 
-func NewRequest(conn *Connection, msgId uint32, data []byte) *Request {
-	return &Request{
+func NewRequest(conn *Connection, msgId uint32, data []byte) Request {
+	return Request{
 		Conn: conn,
 		Data: data,
 		Msg:  NewMessage(msgId, data),

@@ -15,7 +15,7 @@ func main() {
 	}
 	fmt.Println("服务器链接成功！")
 
-	data, err := network.Pack(network.NewMessage(1, []byte("hello!")))
+	data, err := network.Pack(network.NewMessage(2, []byte("88")))
 	if err != nil {
 		return
 	}

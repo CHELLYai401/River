@@ -14,60 +14,84 @@ type Connection struct {
 	ConnID      uint32
 	State       int
 	ExitChannel chan int
-	Router      IRouter
+	MsgHandler  *MsgHandler
+
+	//无缓冲管道，用于读、写Goroutine之间的消息通信
+	msgChan chan []byte
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, router IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, MsgHandler *MsgHandler) *Connection {
 	return &Connection{
 		Conn:        conn,
 		ConnID:      connID,
 		State:       0,
 		ExitChannel: make(chan int, 1),
-		Router:      router,
+		msgChan:     make(chan []byte),
+		MsgHandler:  MsgHandler,
 	}
 }
 
 func (c *Connection) ReadMsg() {
-	defer fmt.Println("connReader is exit, remote addr is ", c.Conn.RemoteAddr().String())
+	defer fmt.Println("connReader is exit, remote addr is ", c.RemoteAddr().String())
 	defer c.Stop()
 
 	for {
 
 		GetHeadLen := make([]byte, GetHeadLen())
 		if _, err := io.ReadFull(c.Conn, GetHeadLen); err != nil {
-			return
+			break
 		}
 
-		msgHead, err := Unpack(GetHeadLen)
+		msg, err := Unpack(GetHeadLen)
 		if err != nil {
-			return
+			break
 		}
 
-		if msgHead.Len > 0 {
-			msg := msgHead
-			msg.Data = make([]byte, msg.GetMsgLen())
-			_, err := io.ReadFull(c.Conn, msg.Data)
+		var data []byte
+		if msg.Len > 0 {
+			_, err := io.ReadFull(c.Conn, data)
 			if err != nil {
 				fmt.Println(err)
-				return
+				break
 			}
+			msg.SetData(data)
 			fmt.Println("客户端发的消息内容：", string(msg.Data), "客户端发的消息ID：", msg.Id, "客户端发的消息长度：", msg.Len)
 
-			r := NewRequest(c, 1, msg.Data)
+			go c.MsgHandler.DoMsgHandle(int(msg.Id), NewRequest(c, 1, msg.Data))
 
-			if c.Router != nil {
-				c.Router.PreHandle(r)
-				c.Router.Handle(r)
-				c.Router.PostHandle(r)
-			}
 		}
 
 	}
 }
 
+func (c *Connection) WriteMsg() {
+	fmt.Println("[Writer Gorutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
+	//不断地阻塞等待ch的消息，进行写给客户端
+	for {
+		select {
+		case data := <-c.msgChan:
+			//有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send data error, ", err)
+				return
+			}
+		case <-c.ExitChannel:
+			//代表Reader已经退出，此时Writer也要退出
+			return
+		}
+	}
+}
+
+// 获取远程客户端的TCP状态 IP port
+func (c *Connection) RemoteAddr() net.Addr {
+	return c.Conn.RemoteAddr()
+}
+
 func (c *Connection) Start() {
 	c.State = 1
 	go c.ReadMsg()
+	go c.WriteMsg()
 }
 
 func (c *Connection) Stop() {
@@ -76,6 +100,9 @@ func (c *Connection) Stop() {
 	}
 	c.State = 0
 	c.Conn.Close()
+	c.ExitChannel <- 1
+	close(c.ExitChannel)
+	close(c.msgChan)
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
@@ -99,8 +126,10 @@ func (c *Connection) SendMsg(msgid uint32, data []byte) error {
 		return err
 	}
 
-	if _, err := c.Conn.Write(data); err != nil {
-		return errors.New("消息发送失败！")
-	}
+	// if _, err := c.Conn.Write(data); err != nil {
+	// 	return errors.New("消息发送失败！")
+	// }
+	//将数据发送给客户端
+	c.msgChan <- data
 	return nil
 }

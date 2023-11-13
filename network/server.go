@@ -12,7 +12,7 @@ type Server struct {
 	ListenIP   string
 	ListenPort int
 	IPVersion  string
-	Router     IRouter
+	MsgHandler *MsgHandler
 }
 
 func NewServer(name string, listenIP string, listenPort int) *Server {
@@ -21,7 +21,7 @@ func NewServer(name string, listenIP string, listenPort int) *Server {
 		ListenIP:   utils.GlobalObject.IP,
 		ListenPort: utils.GlobalObject.Port,
 		IPVersion:  utils.GlobalObject.IPVersion,
-		Router:     nil,
+		MsgHandler: NewMsgHandler(),
 	}
 }
 
@@ -55,7 +55,7 @@ func (s *Server) Start() {
 			if err != nil {
 				continue
 			}
-			c := NewConnection(conn, 1114, s.Router)
+			c := NewConnection(conn, uint32(1145), s.MsgHandler)
 			go c.Start()
 		}
 	}()
@@ -70,6 +70,6 @@ func (s *Server) Server() {
 	select {}
 }
 
-func (s *Server) AddRouter(router IRouter) {
-	s.Router = router
+func (s *Server) AddRouter(msgId int, router IRouter) {
+	s.MsgHandler.AddRouter(msgId, router)
 }
