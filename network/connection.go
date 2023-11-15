@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 )
 
 type HandleFunc func(*net.TCPConn, []byte, int) error
@@ -15,20 +16,29 @@ type Connection struct {
 	State       int
 	ExitChannel chan int
 	MsgHandler  *MsgHandler
-
+	Ser         *Server
 	//无缓冲管道，用于读、写Goroutine之间的消息通信
 	msgChan chan []byte
+	//链接属性集合
+	property map[string]interface{}
+	//保护链接属性的锁
+	propertyLock sync.RWMutex
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, MsgHandler *MsgHandler) *Connection {
-	return &Connection{
+func NewConnection(conn *net.TCPConn, connID uint32, MsgHandler *MsgHandler, ser *Server) *Connection {
+	tcpConn := &Connection{
 		Conn:        conn,
 		ConnID:      connID,
 		State:       0,
 		ExitChannel: make(chan int, 1),
 		msgChan:     make(chan []byte),
 		MsgHandler:  MsgHandler,
+		Ser:         ser,
+		property:    make(map[string]interface{}),
 	}
+
+	tcpConn.Ser.GetConnMgr().AddConnection(tcpConn)
+	return tcpConn
 }
 
 func (c *Connection) ReadMsg() {
@@ -57,7 +67,7 @@ func (c *Connection) ReadMsg() {
 			msg.SetData(data)
 			fmt.Println("客户端发的消息内容：", string(msg.Data), "客户端发的消息ID：", msg.Id, "客户端发的消息长度：", msg.Len)
 
-			go c.MsgHandler.DoMsgHandle(int(msg.Id), NewRequest(c, 1, msg.Data))
+			c.MsgHandler.SendMsgToTaskQueue(NewRequest(c, msg.Id, msg.Data))
 
 		}
 
@@ -92,9 +102,12 @@ func (c *Connection) Start() {
 	c.State = 1
 	go c.ReadMsg()
 	go c.WriteMsg()
+	c.Ser.CallOnConnStart(c)
+
 }
 
 func (c *Connection) Stop() {
+	c.Ser.CallOnConnStop(c)
 	if c.State == 0 {
 		return
 	}
@@ -132,4 +145,34 @@ func (c *Connection) SendMsg(msgid uint32, data []byte) error {
 	//将数据发送给客户端
 	c.msgChan <- data
 	return nil
+}
+
+// 设置链接属性
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	c.property[key] = value
+}
+
+// 获取链接属性
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
+	}
+
+}
+
+// 移除链接属性
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
+
 }
